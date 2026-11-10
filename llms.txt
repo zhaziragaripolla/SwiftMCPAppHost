@@ -10,7 +10,7 @@
 ## Install
 
 ```swift
-.package(url: "https://github.com/zhaziragaripolla/SwiftMCPAppHost.git", branch: "main"),
+.package(url: "https://github.com/zhaziragaripolla/SwiftMCPAppHost.git", from: "0.1.0"),
 ```
 
 ## Minimal integration

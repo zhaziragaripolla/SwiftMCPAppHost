@@ -15,7 +15,7 @@ Show **MCP Apps** in a native iOS app. SwiftMCPAppHost is a Swift host for the [
 In Xcode, choose File ▸ Add Package Dependencies, or add it to `Package.swift`:
 
 ```swift
-.package(url: "https://github.com/zhaziragaripolla/SwiftMCPAppHost.git", branch: "main"),
+.package(url: "https://github.com/zhaziragaripolla/SwiftMCPAppHost.git", from: "0.1.0"),
 ```
 
 iOS 17+ (macOS 14+ for running the tests).

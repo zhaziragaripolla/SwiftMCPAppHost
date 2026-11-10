@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.1.0] - 2026-11-10
 
 ### Added
 - `MCPAppWebHost`, `MCPAppView` (SwiftUI) and `MCPAppHostView` (UIKit): show an MCP App in a sandboxed `WKWebView`.
@@ -10,3 +10,5 @@
 - `MCPAppCSP` and `MCPAppSandbox`: the Content Security Policy, network rules and web view settings.
 - Verified against an app built with the official `@modelcontextprotocol/ext-apps` SDK 2.0.4; `Examples/TicTacToe/Scripts/make-sdk-probe.py` builds that app.
 - RFC-001, the TicTacToe example, `llms.txt`, `llms-full.txt`, DocC articles and a Claude Code plugin with a skill.
+
+[0.1.0]: https://github.com/zhaziragaripolla/SwiftMCPAppHost/releases/tag/0.1.0

@@ -13,7 +13,7 @@ Full reference: https://github.com/zhaziragaripolla/SwiftMCPAppHost/blob/main/ll
 
 1. **Add the package** to the app target:
    ```swift
-   .package(url: "https://github.com/zhaziragaripolla/SwiftMCPAppHost.git", branch: "main"),
+   .package(url: "https://github.com/zhaziragaripolla/SwiftMCPAppHost.git", from: "0.1.0"),
    ```
 
 2. **Advertise support** in the MCP client's `initialize` capabilities, or servers won't return UIs:

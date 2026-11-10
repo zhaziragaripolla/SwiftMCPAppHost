@@ -16,7 +16,7 @@ SwiftMCPAppHost does steps 3 to 6. Your MCP client does 1 and 2 and executes too
 ## Install
 
 ```swift
-.package(url: "https://github.com/zhaziragaripolla/SwiftMCPAppHost.git", branch: "main"),
+.package(url: "https://github.com/zhaziragaripolla/SwiftMCPAppHost.git", from: "0.1.0"),
 // target: .product(name: "SwiftMCPAppHost", package: "SwiftMCPAppHost")
 ```
 
