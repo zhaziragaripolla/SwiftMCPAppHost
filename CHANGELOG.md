@@ -8,4 +8,5 @@
 - `MCPAppHostDelegate`: what the host app provides; everything but `callTool` refuses by default.
 - `MCPAppResource`: parses `ui://` resources and their `_meta.ui` metadata.
 - `MCPAppCSP` and `MCPAppSandbox`: the Content Security Policy, network rules and web view settings.
+- Verified against an app built with the official `@modelcontextprotocol/ext-apps` SDK 2.0.4; `Examples/TicTacToe/Scripts/make-sdk-probe.py` builds that app.
 - RFC-001, the TicTacToe example, `llms.txt`, `llms-full.txt`, DocC articles and a Claude Code plugin with a skill.

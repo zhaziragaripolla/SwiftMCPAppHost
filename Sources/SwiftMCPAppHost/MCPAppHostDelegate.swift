@@ -19,7 +19,8 @@ public protocol MCPAppHostDelegate: AnyObject {
     func openLink(_ url: URL) async -> Bool
 
     /// The app sent a message for the conversation (`ui/message`), e.g.
-    /// `{"role": "user", "content": {"type": "text", "text": "…"}}`.
+    /// `{"role": "user", "content": [{"type": "text", "text": "…"}]}`. The official SDK sends
+    /// `content` as an array of blocks; the spec's examples show a single block, so accept both.
     /// Return true to accept it. Default: refused.
     func receiveMessage(_ message: MCPJSON) async -> Bool
 

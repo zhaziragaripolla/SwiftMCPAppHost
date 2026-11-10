@@ -104,7 +104,7 @@ await host.teardown()
 - `callTool(name:arguments:) async throws -> MCPJSON`: required. Return the CallToolResult.
 - `readResource(uri:) async throws -> MCPJSON`: default refuses.
 - `openLink(_:) async -> Bool`: default refuses. Only http, https and mailto URLs reach it.
-- `receiveMessage(_:) async -> Bool`: `ui/message`. Default refuses.
+- `receiveMessage(_:) async -> Bool`: `ui/message`, `{"role": "user", "content": [{"type": "text", "text": …}]}`. Content is an array from the official SDK, a single block in the spec's examples; handle both. Default refuses.
 - `updateModelContext(_:) async`: default ignores.
 - `requestDisplayMode(_:current:) async -> MCPAppDisplayMode`: default keeps the current mode.
 - `didReceiveLog(_:)`, `appDidRequestTeardown()`, `didReport(_:)`: default ignore.

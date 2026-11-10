@@ -224,6 +224,30 @@ struct BridgeTests {
         #expect(await h.request("ui/request-display-mode", ["mode": "huge"])["error"]?["code"] == -32602)
     }
 
+    /// The exact request shapes the official @modelcontextprotocol/ext-apps SDK (2.0.4) sends,
+    /// as observed in the example app.
+    @Test func officialSDKMessageShapes() async throws {
+        let h = Harness(context: MCPAppHostContext(availableDisplayModes: [.inline]))
+        let reply = await h.request("ui/initialize", [
+            "appCapabilities": ["availableDisplayModes": ["inline", "fullscreen"]],
+            "appInfo": ["name": "sdk-probe", "version": "1.0.0"],
+            "protocolVersion": "2026-01-26",
+        ])
+        let result = try #require(reply["result"]?.objectValue)
+        #expect(Set(result.keys).isSuperset(of: ["protocolVersion", "hostInfo", "hostCapabilities", "hostContext"]))
+        h.notify("ui/notifications/initialized")
+        #expect(h.bridge.state == .ready)
+
+        h.delegate.acceptMessages = true
+        let message: MCPJSON = ["role": "user", "content": [["type": "text", "text": "Hello from an app built with the official SDK."]]]
+        #expect(await h.request("ui/message", message)["result"] == [:])
+        #expect(h.delegate.messages == [message])
+        #expect(await h.request("ui/update-model-context", ["content": [["type": "text", "text": "Probe state: ok"]]])["result"] == [:])
+        #expect(await h.request("ui/request-display-mode", ["mode": "fullscreen"])["result"] == ["mode": "inline"])
+        h.notify("notifications/message", ["level": "info", "data": "sdk-probe connected"])
+        #expect(h.delegate.logs.last == ["level": "info", "data": "sdk-probe connected"])
+    }
+
     @Test func unknownMethodsAndMalformedInput() async {
         let h = Harness()
         await h.handshake()
@@ -287,7 +311,10 @@ struct BridgeTests {
         options.handshakeTimeout = .milliseconds(30)
         let h = Harness(options: options)
         h.bridge.start()
-        try await Task.sleep(for: .milliseconds(120))
+        // Wait for the report rather than a fixed time, so a busy machine can't make this flaky.
+        for _ in 0..<200 where !h.delegate.diagnostics.contains(.handshakeTimedOut) {
+            try await Task.sleep(for: .milliseconds(10))
+        }
         #expect(h.delegate.diagnostics.contains(.handshakeTimedOut))
     }
 

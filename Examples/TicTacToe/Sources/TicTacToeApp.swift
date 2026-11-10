@@ -36,11 +36,27 @@ final class FakeHost: MCPAppHostDelegate {
     }
 
     func receiveMessage(_ message: MCPJSON) async -> Bool {
-        let text = message["content"]?["text"]?.stringValue ?? message.jsonString()
+        // The spec's examples use one content object; the official SDK sends an array of them.
+        let blocks = message["content"]?.arrayValue ?? [message["content"] ?? .null]
+        let text = blocks.compactMap { $0["text"]?.stringValue }.joined(separator: " ")
         record("ui/message \(text)")
         chat.append(text)
         return true
     }
+
+    func openLink(_ url: URL) async -> Bool {
+        record("ui/open-link \(url.absoluteString)")
+        return true   // a real app would open it in the browser here
+    }
+
+    func updateModelContext(_ context: MCPJSON) async { record("ui/update-model-context \(context.jsonString())") }
+
+    func requestDisplayMode(_ mode: MCPAppDisplayMode, current: MCPAppDisplayMode) async -> MCPAppDisplayMode {
+        record("ui/request-display-mode \(mode.rawValue), staying \(current.rawValue)")
+        return current
+    }
+
+    func didReceiveLog(_ params: MCPJSON?) { record("notifications/message \(params?.jsonString() ?? "")") }
 
     func didReport(_ diagnostic: MCPAppDiagnostic) { record("diagnostic: \(diagnostic)") }
 
@@ -60,15 +76,32 @@ final class FakeHost: MCPAppHostDelegate {
     }
 }
 
+/// The bundled MCP Apps the example can show.
+enum DemoApp: String, CaseIterable, Identifiable {
+    case ticTacToe = "tic-tac-toe"
+    /// Built with the official @modelcontextprotocol/ext-apps SDK by Scripts/make-sdk-probe.py.
+    case sdkProbe = "sdk-probe"
+    var id: String { rawValue }
+    var title: String { self == .ticTacToe ? "Tic-tac-toe" : "Official SDK" }
+    var isBundled: Bool { Bundle.main.url(forResource: rawValue, withExtension: "html") != nil }
+}
+
 struct ChatScreen: View {
     @State private var host = FakeHost()
     @State private var app: MCPAppWebHost?
+    @State private var choice: DemoApp = .ticTacToe
     @Environment(\.colorScheme) private var scheme
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
+                    if DemoApp.sdkProbe.isBundled {
+                        Picker("App", selection: $choice) {
+                            ForEach(DemoApp.allCases) { Text($0.title).tag($0) }
+                        }
+                        .pickerStyle(.segmented)
+                    }
                     Text("Let's play tic-tac-toe.")
                         .padding(.horizontal, 14).padding(.vertical, 10)
                         .background(.tint, in: RoundedRectangle(cornerRadius: 18))
@@ -77,6 +110,7 @@ struct ChatScreen: View {
                     Text("Sure. You're X.")
                     if let app {
                         MCPAppView(host: app, minHeight: 200, maxHeight: 520)
+                            .id(ObjectIdentifier(app))
                     }
                     ForEach(host.chat, id: \.self) { message in
                         Text(message)
@@ -88,7 +122,7 @@ struct ChatScreen: View {
                     if !host.log.isEmpty {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Bridge log").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-                            ForEach(host.log.suffix(6)) { Text($0.text).font(.caption2.monospaced()).lineLimit(2) }
+                            ForEach(host.log.suffix(8)) { Text($0.text).font(.caption2.monospaced()).lineLimit(3) }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(12)
@@ -100,6 +134,14 @@ struct ChatScreen: View {
             .navigationTitle("MCP App host")
             .navigationBarTitleDisplayMode(.inline)
             .task { start() }
+            .onChange(of: choice) {
+                let old = app
+                app = nil
+                Task {
+                    await old?.teardown()
+                    start()
+                }
+            }
             .onChange(of: scheme) { _, new in
                 guard let app else { return }
                 var context = app.bridge.hostContext
@@ -113,10 +155,10 @@ struct ChatScreen: View {
     /// `_meta.ui.resourceUri`. Here it's bundled, but parsed through the same path.
     private func start() {
         guard app == nil,
-              let url = Bundle.main.url(forResource: "tic-tac-toe", withExtension: "html"),
+              let url = Bundle.main.url(forResource: choice.rawValue, withExtension: "html"),
               let html = try? String(contentsOf: url, encoding: .utf8),
               let resource = try? MCPAppResource(content: [
-                  "uri": "ui://tic-tac-toe/board", "mimeType": .string(MCPAppProtocol.resourceMIMEType), "text": .string(html),
+                  "uri": .string("ui://example/\(choice.rawValue)"), "mimeType": .string(MCPAppProtocol.resourceMIMEType), "text": .string(html),
               ])
         else { return }
         let app = MCPAppWebHost(

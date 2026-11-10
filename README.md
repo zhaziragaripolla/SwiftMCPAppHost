@@ -6,7 +6,7 @@ Show **MCP Apps** in a native iOS app. SwiftMCPAppHost is a Swift host for the [
 
 - **Spec-exact:** MCP Apps (SEP-1865), stable version `2026-01-26`: the `ui/initialize` handshake, tool input and results, `tools/call`, `ui/open-link`, `ui/message`, display modes, size changes, and teardown.
 - **Sandboxed by default:** the app's HTML is treated as untrusted. CSP built from the resource's declared domains, network blocked outside them, no persistent storage, no navigation, no new windows, no camera or microphone.
-- **Unchanged apps:** MCP Apps written for web hosts (`window.parent.postMessage`) run as they are.
+- **Unchanged apps:** MCP Apps written for web hosts run as they are. Tested with an app built on the official `@modelcontextprotocol/ext-apps` SDK (2.0.4): handshake, tool input and result, tool calls, messages, links, model context, display modes, logging and teardown.
 - **Bring your own MCP client:** this package hosts the interface; your client makes the tool calls.
 - **Swift 6:** strict concurrency, tested under Thread Sanitizer.
 
@@ -126,7 +126,14 @@ The reasoning for each control is in [RFC-001](Docs/RFCs/RFC-001-native-mcp-apps
 
 ## Example
 
-`Examples/TicTacToe` is a tic-tac-toe MCP App in a native chat. The game calls a `computer_move` tool on each turn, reports the result, and can send a message to the conversation. It runs with no network and no API key.
+`Examples/TicTacToe` is a native chat that hosts MCP Apps. It runs with no network and no API key.
+
+- **Tic-tac-toe:** a hand-written app. It calls a `computer_move` tool on each turn, reports the result, and can send a message to the conversation.
+- **Official SDK:** an app built with `@modelcontextprotocol/ext-apps`, with a button for each request type. Generate it first; it isn't committed because it bundles the SDK, which has its own license:
+
+```bash
+python3 Examples/TicTacToe/Scripts/make-sdk-probe.py
+```
 
 ```bash
 cd Examples/TicTacToe && xcodegen generate && open TicTacToe.xcodeproj

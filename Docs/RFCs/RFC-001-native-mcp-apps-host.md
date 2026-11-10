@@ -100,6 +100,7 @@ Geolocation and clipboard writes are not granted either. Inline content can't st
 
 ## Risks & Open Questions
 
+- **Compatibility with the official SDK.** Verified with `@modelcontextprotocol/ext-apps` 2.0.4: its `PostMessageTransport` posts to `window.parent` and accepts messages whose `source` is `window.parent`, which the shim provides, and its schema validation accepts this host's `ui/initialize` reply. Every request type and teardown worked in the example app.
 - **Overriding `window.postMessage`** breaks apps that post messages to themselves. We judge this rare; it's documented.
 - **Apps that check `event.origin`.** We set `origin` to the document's origin. An app that requires a specific host origin would need it configured; none of the spec's examples do.
 - **`-32601` for unknown methods** follows JSON-RPC; the reference bridge's exact behavior comes from the MCP SDK, which we didn't verify.
