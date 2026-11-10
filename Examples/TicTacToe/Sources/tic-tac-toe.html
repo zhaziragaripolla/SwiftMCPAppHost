@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tic-tac-toe</title>
+<style>
+  :root { --bg: #ffffff; --ink: #14181a; --muted: #6b7378; --line: #dde1e3; --cell: #f3f5f6; --x: #0b6e5d; --o: #b4510b; }
+  :root[data-theme="dark"] { --bg: #151a1c; --ink: #edf1f2; --muted: #95a0a5; --line: #2b3437; --cell: #1f2629; --x: #3ec6ae; --o: #e8a04c; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.4 -apple-system, system-ui, sans-serif; }
+  main { padding: 16px; display: grid; gap: 12px; justify-items: center; }
+  h1 { font-size: 17px; margin: 0; }
+  #status { color: var(--muted); font-weight: 600; min-height: 1.4em; }
+  #board { display: grid; grid-template-columns: repeat(3, 76px); gap: 8px; }
+  #board button { width: 76px; height: 76px; border: 1px solid var(--line); border-radius: 14px; background: var(--cell);
+    font: 700 34px/1 -apple-system, system-ui, sans-serif; color: var(--ink); cursor: pointer; }
+  #board button.x { color: var(--x); } #board button.o { color: var(--o); }
+  #board button:disabled { cursor: default; }
+  .row { display: flex; gap: 8px; }
+  .row button:disabled { opacity: 0.45; }
+  .row button { border: 1px solid var(--line); background: var(--cell); color: var(--ink); border-radius: 10px; padding: 9px 14px; font: 600 14px -apple-system, system-ui, sans-serif; min-height: 44px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Tic-tac-toe</h1>
+  <div id="status">Connecting…</div>
+  <div id="board" role="grid" aria-label="Board"></div>
+  <div class="row">
+    <button id="again" type="button">New game</button>
+    <button id="tell" type="button" disabled>Tell the assistant</button>
+  </div>
+</main>
+<script>
+  // A minimal MCP Apps client, written against window.parent.postMessage as a web host would expect.
+  let nextId = 1;
+  const pending = new Map();
+  const send = (message) => window.parent.postMessage(message, "*");
+  const request = (method, params) => new Promise((resolve, reject) => {
+    const id = nextId++;
+    pending.set(id, { resolve, reject });
+    send({ jsonrpc: "2.0", id, method, params });
+  });
+  const notify = (method, params) => send({ jsonrpc: "2.0", method, params });
+
+  let board = Array(9).fill("");
+  let busy = true;
+  let result = null;
+  const statusEl = document.getElementById("status");
+  const boardEl = document.getElementById("board");
+  const tellEl = document.getElementById("tell");
+
+  const lines = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+  const winner = (b) => {
+    for (const [a, c, d] of lines) if (b[a] && b[a] === b[c] && b[a] === b[d]) return b[a];
+    return b.every(Boolean) ? "draw" : null;
+  };
+
+  function render() {
+    boardEl.innerHTML = "";
+    board.forEach((mark, i) => {
+      const cell = document.createElement("button");
+      cell.type = "button";
+      cell.textContent = mark;
+      cell.className = mark.toLowerCase();
+      cell.setAttribute("aria-label", mark ? `Cell ${i + 1}, ${mark}` : `Cell ${i + 1}, empty`);
+      cell.disabled = busy || Boolean(mark) || Boolean(result);
+      cell.addEventListener("click", () => play(i));
+      boardEl.appendChild(cell);
+    });
+    tellEl.disabled = !result;
+  }
+
+  async function finish(outcome) {
+    result = outcome;
+    statusEl.textContent = outcome === "draw" ? "Draw." : outcome === "X" ? "You win." : "The assistant wins.";
+    render();
+    try { await request("tools/call", { name: "report_result", arguments: { winner: outcome, board: board.join(".") } }); }
+    catch (e) { statusEl.textContent += " (Couldn't report the result.)"; }
+  }
+
+  async function play(i) {
+    if (busy || board[i] || result) return;
+    board[i] = "X";
+    busy = true;
+    render();
+    const after = winner(board);
+    if (after) return finish(after);
+    statusEl.textContent = "Thinking…";
+    try {
+      const reply = await request("tools/call", { name: "computer_move", arguments: { board: board.map(m => m || "-").join("") } });
+      const move = reply && reply.structuredContent && reply.structuredContent.index;
+      if (Number.isInteger(move) && !board[move]) board[move] = "O";
+    } catch (e) {
+      statusEl.textContent = "The host refused the move.";
+    }
+    busy = false;
+    const end = winner(board);
+    if (end) return finish(end);
+    statusEl.textContent = "Your move. You're X.";
+    render();
+  }
+
+  function newGame() {
+    board = Array(9).fill(""); result = null; busy = false;
+    statusEl.textContent = "Your move. You're X.";
+    render();
+  }
+
+  function applyContext(context) {
+    if (context && context.theme) document.documentElement.dataset.theme = context.theme;
+  }
+
+  document.getElementById("again").addEventListener("click", newGame);
+  tellEl.addEventListener("click", async () => {
+    const text = result === "draw" ? "We drew at tic-tac-toe." : result === "X" ? "I beat you at tic-tac-toe!" : "You beat me at tic-tac-toe.";
+    try { await request("ui/message", { role: "user", content: { type: "text", text } }); tellEl.textContent = "Sent"; }
+    catch (e) { tellEl.textContent = "Not sent"; }
+    tellEl.disabled = true;
+  });
+
+  window.addEventListener("message", (event) => {
+    if (event.source !== window.parent) return;
+    const m = event.data;
+    if (!m || m.jsonrpc !== "2.0") return;
+    if (m.id !== undefined && m.method === undefined) {
+      const p = pending.get(m.id);
+      if (p) { pending.delete(m.id); m.error ? p.reject(m.error) : p.resolve(m.result); }
+      return;
+    }
+    switch (m.method) {
+      case "ui/notifications/tool-input": break;
+      case "ui/notifications/tool-result": newGame(); break;
+      case "ui/notifications/host-context-changed": applyContext(m.params); break;
+      case "ui/resource-teardown": send({ jsonrpc: "2.0", id: m.id, result: {} }); break;
+    }
+  });
+
+  new ResizeObserver(() => {
+    notify("ui/notifications/size-changed", { width: document.body.scrollWidth, height: document.body.scrollHeight });
+  }).observe(document.body);
+
+  render();
+  (async () => {
+    const reply = await request("ui/initialize", {
+      appInfo: { name: "tic-tac-toe", version: "1.0.0" },
+      appCapabilities: { availableDisplayModes: ["inline"] },
+      protocolVersion: "2026-01-26",
+    });
+    applyContext(reply.hostContext);
+    notify("ui/notifications/initialized", {});
+    statusEl.textContent = "Waiting for the game…";
+  })();
+</script>
+</body>
+</html>

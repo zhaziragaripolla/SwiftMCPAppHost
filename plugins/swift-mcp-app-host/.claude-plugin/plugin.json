@@ -1,0 +1,6 @@
+{
+  "name": "swift-mcp-app-host",
+  "description": "Claude Code skill for SwiftMCPAppHost: show MCP Apps in native iOS apps",
+  "version": "0.1.0",
+  "author": { "name": "Zhazira Garipolla" }
+}

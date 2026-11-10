@@ -1,0 +1,55 @@
+# SwiftMCPAppHost
+
+> A Swift package that shows MCP Apps (the Model Context Protocol's interactive UI extension, SEP-1865, version 2026-01-26) inside native iOS apps. It renders the HTML interface an MCP tool returns in a sandboxed WKWebView and connects it to the host app over the MCP Apps JSON-RPC protocol. SwiftUI and UIKit, iOS 17+, Swift 6, zero dependencies.
+
+## When to use it
+
+- A native iOS app (SwiftUI or UIKit) talks to MCP servers and wants to show MCP Apps, MCP UI resources (`ui://`, MIME type `text/html;profile=mcp-app`), or tool results with `_meta.ui.resourceUri`.
+- Not for: web apps (use the official `@modelcontextprotocol/ext-apps` AppBridge), React Native, or Android. It is not an MCP client; pair it with one.
+
+## Install
+
+```swift
+.package(url: "https://github.com/zhaziragaripolla/SwiftMCPAppHost.git", branch: "main"),
+```
+
+## Minimal integration
+
+```swift
+import SwiftMCPAppHost
+
+@MainActor
+final class AppHost: MCPAppHostDelegate {
+    let client: MyMCPClient
+    init(client: MyMCPClient) { self.client = client }
+    func callTool(name: String, arguments: MCPJSON?) async throws -> MCPJSON {
+        try await client.callTool(name: name, arguments: arguments)
+    }
+}
+
+// Advertise support in your MCP initialize request:
+let capabilities: MCPJSON = ["extensions": MCPAppProtocol.clientCapability]
+
+// When a tool with _meta.ui.resourceUri is called:
+let resource = try MCPAppResource(readResult: try await client.readResource(uri: uiURI))
+let host = MCPAppWebHost(resource: resource, hostInfo: MCPAppHostInfo(name: "MyApp", version: "1.0"), delegate: appHost)
+host.bridge.sendToolInput(arguments)
+host.bridge.sendToolResult(callToolResult)
+
+// SwiftUI: MCPAppView(host: host, maxHeight: 500)    UIKit: MCPAppHostView(host: host)
+// Before removing it: await host.teardown()
+```
+
+## Security model
+
+- The app's HTML is untrusted. CSP comes from the resource's `_meta.ui.csp`, with the spec's no-network default; a content rule list blocks undeclared domains as well.
+- No persistent storage, navigation, new windows, camera, microphone or location. Links and messages go to the delegate, which refuses by default.
+- Only valid JSON-RPC from the main frame is accepted, with size limits and timeouts.
+
+## Docs
+
+- [README](https://github.com/zhaziragaripolla/SwiftMCPAppHost/blob/main/README.md): full guide
+- [llms-full.txt](https://github.com/zhaziragaripolla/SwiftMCPAppHost/blob/main/llms-full.txt): complete API and common mistakes
+- [RFC-001](https://github.com/zhaziragaripolla/SwiftMCPAppHost/blob/main/Docs/RFCs/RFC-001-native-mcp-apps-host.md): design and every security control
+- [Example](https://github.com/zhaziragaripolla/SwiftMCPAppHost/tree/main/Examples/TicTacToe): a tic-tac-toe MCP App in a native chat
+- [MCP Apps specification](https://modelcontextprotocol.io/extensions/apps/overview)

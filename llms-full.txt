@@ -1,0 +1,147 @@
+# SwiftMCPAppHost: complete reference
+
+> Shows MCP Apps (MCP extension SEP-1865, version 2026-01-26) inside native iOS apps. Renders the HTML interface an MCP tool returns in a sandboxed WKWebView and connects it to the host app over JSON-RPC. SwiftUI and UIKit, iOS 17+, Swift 6, zero dependencies. Not an MCP client.
+
+## How MCP Apps work, in short
+
+1. A server's tool declares an interface in `_meta.ui.resourceUri`, a `ui://` URI.
+2. The host reads that resource (`resources/read`). Its MIME type is `text/html;profile=mcp-app`, with HTML in `text` or base64 `blob`, and optional `_meta.ui` (`csp`, `permissions`, `prefersBorder`).
+3. The host renders the HTML. The app sends `ui/initialize`; the host replies with its info, capabilities and context; the app sends `ui/notifications/initialized`.
+4. The host sends the tool's arguments (`ui/notifications/tool-input`) and result (`ui/notifications/tool-result`).
+5. The app can call tools (`tools/call`), open links, send messages to the conversation, and report its size.
+6. Before removing it, the host sends `ui/resource-teardown`.
+
+SwiftMCPAppHost does steps 3 to 6. Your MCP client does 1 and 2 and executes tool calls.
+
+## Install
+
+```swift
+.package(url: "https://github.com/zhaziragaripolla/SwiftMCPAppHost.git", branch: "main"),
+// target: .product(name: "SwiftMCPAppHost", package: "SwiftMCPAppHost")
+```
+
+## Full integration
+
+```swift
+import SwiftUI
+import SwiftMCPAppHost
+
+@MainActor
+final class AppHost: MCPAppHostDelegate {
+    let client: MyMCPClient
+    init(client: MyMCPClient) { self.client = client }
+
+    // Required: the app called a tool on its server. Forward it through your MCP client.
+    func callTool(name: String, arguments: MCPJSON?) async throws -> MCPJSON {
+        try await client.callTool(name: name, arguments: arguments)
+    }
+
+    // Optional: everything else is refused by default.
+    func openLink(_ url: URL) async -> Bool {
+        // e.g. await UIApplication.shared.open(url) on iOS
+        true
+    }
+}
+
+@MainActor
+func showApp(client: MyMCPClient, appHost: AppHost, uiURI: String,
+             arguments: MCPJSON, callToolResult: MCPJSON) async throws -> MCPAppWebHost {
+    // 1. Read the tool's UI resource (its _meta.ui.resourceUri) with your MCP client.
+    let resource = try MCPAppResource(readResult: try await client.readResource(uri: uiURI))
+
+    // 2. Create a host for it.
+    let host = MCPAppWebHost(
+        resource: resource,
+        hostInfo: MCPAppHostInfo(name: "MyApp", version: "1.0"),
+        delegate: appHost
+    )
+
+    // 3. Pass the tool call through. Held until the app finishes its handshake.
+    host.bridge.sendToolInput(arguments)
+    host.bridge.sendToolResult(callToolResult)
+    return host
+}
+
+struct ToolResultView: View {
+    let host: MCPAppWebHost
+    var body: some View {
+        MCPAppView(host: host, maxHeight: 500)
+    }
+}
+
+// In your MCP client's initialize request:
+let capabilities: MCPJSON = ["extensions": MCPAppProtocol.clientCapability]
+
+// Before removing the view:
+await host.teardown()
+```
+
+## Public API
+
+### MCPAppWebHost (class, @MainActor, @Observable)
+- `init(resource:hostInfo:hostContext:delegate:options:)`: one per app. `hostContext` defaults to `.current()`.
+- `bridge: MCPAppBridge`: send tool input, results and context through this.
+- `resource: MCPAppResource`, `sandbox: MCPAppSandbox`, `webView: WKWebView` (don't change its settings).
+- `contentHeight: Double?`: the height the app last reported, in points.
+- `load()`: compiles the network rules and loads the app. The views call it.
+- `teardown(reason:) async`: asks the app to clean up, then stops it.
+
+### MCPAppView (SwiftUI) and MCPAppHostView (UIKit, iOS)
+- `MCPAppView(host:minHeight:maxHeight:)`: sizes to `contentHeight`, clamped. Defaults 120 and 600.
+- `MCPAppHostView(host:)`: intrinsic height follows `contentHeight`; `minHeight`, `maxHeight` properties.
+
+### MCPAppBridge (class, @MainActor)
+- `state`: `.awaitingInitialize`, `.awaitingInitialized`, `.ready`, `.tornDown`.
+- `sendToolInputPartial(_:)`, `sendToolInput(_:)`, `sendToolResult(_:)`, `sendToolCancelled(reason:)`.
+- `setHostContext(_:)`: sends only changed fields.
+- `teardown(reason:) async`, `close()`.
+- `appInfo`, `appCapabilities`, `protocolVersion`, `hostContext`, `displayMode`.
+- `onSizeChange`, `onStateChange` callbacks; `transport` (set by MCPAppWebHost).
+- `receive(_:)`: feed it message text when using your own transport.
+- `Options`: `handshakeTimeout` (15 s), `requestTimeout` (5 s), `maxMessageBytes` (1 MB), `maxQueuedNotifications` (1,000).
+
+### MCPAppHostDelegate (protocol, @MainActor)
+- `callTool(name:arguments:) async throws -> MCPJSON`: required. Return the CallToolResult.
+- `readResource(uri:) async throws -> MCPJSON`: default refuses.
+- `openLink(_:) async -> Bool`: default refuses. Only http, https and mailto URLs reach it.
+- `receiveMessage(_:) async -> Bool`: `ui/message`. Default refuses.
+- `updateModelContext(_:) async`: default ignores.
+- `requestDisplayMode(_:current:) async -> MCPAppDisplayMode`: default keeps the current mode.
+- `didReceiveLog(_:)`, `appDidRequestTeardown()`, `didReport(_:)`: default ignore.
+- Throw `MCPAppError` from async methods to send a specific JSON-RPC error.
+
+### MCPAppResource (struct)
+- `init(readResult:maxBytes:) throws(ParseError)`: parses a `resources/read` result.
+- `init(content:maxBytes:) throws(ParseError)`: parses one `contents` entry.
+- `uri`, `html`, `csp: CSP?`, `permissions`, `prefersBorder`.
+- `ParseError`: `.noContents`, `.wrongMIMEType`, `.notUIScheme`, `.noHTML`, `.invalidBase64`, `.tooLarge`.
+
+### Other types
+- `MCPJSON`: JSON enum with literals, subscripts, `jsonString()`, `parse(_:)`.
+- `MCPAppHostInfo(name:version:)`.
+- `MCPAppHostContext`: `theme`, `displayMode`, `availableDisplayModes`, `containerDimensions`, `locale`, `timeZone`, `platform`, `deviceCapabilities`, `safeAreaInsets`, `styles`, `toolInfo`, `extra`. `.current(theme:)`.
+- `MCPAppDisplayMode`: `.inline`, `.fullscreen`, `.pip`.
+- `MCPAppError(code:message:data:)`: `.denied(_:)` (-32000), `.methodNotFound` (-32601), `.invalidParams(_:)` (-32602), `.internalError(_:)` (-32603).
+- `MCPAppMessage`: a JSON-RPC message.
+- `MCPAppDiagnostic`: what the host dropped or blocked.
+- `MCPAppProtocol`: `latestVersion`, `extensionID`, `resourceMIMEType`, `clientCapability`, `Method` names.
+- `MCPAppCSP.policy(for:)`, `MCPAppCSP.isValidSource(_:)`.
+- `MCPAppSandbox`: the sandbox as values (policy, rule list, document, fixed settings).
+
+## Common mistakes
+
+- **Loading the HTML yourself in a WKWebView.** You lose the sandbox and the bridge. Always go through `MCPAppWebHost` and its views.
+- **Changing `host.webView`'s configuration or delegates.** They are the sandbox.
+- **Forgetting the client capability.** Servers only return UIs to clients that advertise `MCPAppProtocol.clientCapability` in `initialize`.
+- **Executing tool calls without checking them.** The app's HTML is third-party code. In `callTool`, apply the same permission checks as for model-initiated calls, and only call tools on the app's own server.
+- **Opening links without asking.** `openLink` is a request from untrusted content; confirm with the user if the destination matters.
+- **Not tearing down.** Call `teardown()` before removing the view so the app can save state.
+- **Sending `sendToolResult` before `sendToolInput`.** The spec orders input, then result.
+- **Expecting permissions.** Camera, microphone, geolocation and clipboard are never granted; apps must feature-detect.
+
+## Errors and diagnostics
+
+- Requests the delegate refuses are answered with `-32000` and a reason (for example "Link opening denied by user").
+- Unknown requests get `-32601`. Unknown notifications are ignored.
+- Malformed, oversized, non-JSON-RPC or sub-frame messages are dropped and reported through `didReport(_:)`, never crash.
+- A handshake that doesn't finish in 15 s is reported as `.handshakeTimedOut`.

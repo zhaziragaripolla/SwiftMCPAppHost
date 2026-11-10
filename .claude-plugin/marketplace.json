@@ -1,0 +1,11 @@
+{
+  "name": "swift-mcp-app-host",
+  "owner": { "name": "Zhazira Garipolla" },
+  "plugins": [
+    {
+      "name": "swift-mcp-app-host",
+      "source": "./plugins/swift-mcp-app-host",
+      "description": "Claude Code skill for SwiftMCPAppHost: show MCP Apps in native iOS apps"
+    }
+  ]
+}
