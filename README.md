@@ -10,6 +10,18 @@ Show **MCP Apps** in a native iOS app. SwiftMCPAppHost is a Swift host for the [
 - **Bring your own MCP client:** this package hosts the interface; your client makes the tool calls.
 - **Swift 6:** strict concurrency, tested under Thread Sanitizer.
 
+## The problem
+
+MCP Apps lets an MCP server's tool return an interactive interface (a form, a chart, a game) instead of only text. The server sends HTML; the host shows it and talks to it over a JSON-RPC protocol.
+
+The official host implementation is JavaScript and assumes a browser `<iframe>`. A native iOS app that wants to show MCP Apps has to build the host itself:
+
+- **A sandbox.** The HTML comes from a third-party server. Without careful `WKWebView` configuration it can make network requests, keep cookies, navigate away, open windows or ask for the camera.
+- **The protocol.** The handshake, holding messages until the app is ready, routing tool calls to your MCP client, answering every request type, timeouts and teardown.
+- **The plumbing nobody documents.** MCP Apps call `window.parent.postMessage` to reach their host. In a top-level web view, `window.parent` is the app's own window, so those messages never leave the page. Something has to route them to native code, and deliver replies in a way the official SDK accepts.
+
+SwiftMCPAppHost does all three, so adding MCP Apps to an iOS app is a delegate, a view and a few lines of code.
+
 ## Installation
 
 In Xcode, choose File ▸ Add Package Dependencies, or add it to `Package.swift`:
