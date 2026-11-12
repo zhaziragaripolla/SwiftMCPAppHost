@@ -1,5 +1,8 @@
 # SwiftMCPAppHost
 
+[![Swift versions](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2Fzhaziragaripolla%2FSwiftMCPAppHost%2Fbadge%3Ftype%3Dswift-versions)](https://swiftpackageindex.com/zhaziragaripolla/SwiftMCPAppHost)
+[![Platforms](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2Fzhaziragaripolla%2FSwiftMCPAppHost%2Fbadge%3Ftype%3Dplatforms)](https://swiftpackageindex.com/zhaziragaripolla/SwiftMCPAppHost)
+
 Show **MCP Apps** in a native iOS app. SwiftMCPAppHost is a Swift host for the [MCP Apps](https://modelcontextprotocol.io/extensions/apps/overview) extension: it renders the interactive HTML interface an MCP tool returns in a locked-down `WKWebView`, and connects it to your app over the MCP Apps JSON-RPC protocol. SwiftUI and UIKit. Zero dependencies.
 
 <img src="Docs/images/tic-tac-toe.png" alt="A tic-tac-toe MCP App running inside a native iOS chat, with a bridge log showing tool calls" width="300">
